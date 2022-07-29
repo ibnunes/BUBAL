@@ -1,0 +1,67 @@
+inc 8
+
+lbl loop
+forw 1
+inc 4
+
+lbl inner
+forw 1
+inc 2
+forw 1
+inc 3
+forw 1
+inc 3
+forw 1
+inc 1
+back 4
+dec 1
+jnz inner
+
+forw 1
+inc 1
+forw 1
+inc 1
+forw 1
+dec 1
+forw 2
+inc 1
+
+lbl aux
+back 1
+jnz aux
+
+back 1
+dec 1
+jnz loop
+
+forw 2
+out
+forw 1
+dec 3
+out
+inc 7
+out
+out
+inc 3
+out
+forw 2
+out
+back 1
+dec 1
+out
+back 1
+out
+inc 3
+out
+dec 6
+out
+dec 8
+out
+forw 2
+inc 1
+out
+forw 1
+inc 2
+out
+
+stop

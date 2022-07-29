@@ -1,3 +1,8 @@
+(* BUBAL --- Barely Usable Brainfuck Assembly Language
+ * Igor Nunes, 2022
+ * This code is just a proof-of-concept.
+ *)
+
 (* Instruction set *)
 type tinstruction =
   | Forw of int             (* Fundamental *)
@@ -25,7 +30,7 @@ let string_of_instruction = function
   | Set  n -> "SET   " ^ (string_of_int n)
   | Cell n -> "CELL  " ^ (string_of_int n)
   | Jmp  s -> "JMP   " ^ s
-  | Stop   -> "STOP"
+  | Stop   -> "STOP  "
 
 (* Program definition *)
 type tcode    = tinstruction array
@@ -38,34 +43,29 @@ exception UnknownInstruction of string
 exception Comment
 
 
-(* Default constants and functions *)
-let _default_code_size  = 128
-let _default_index_size = _default_code_size / 8
-let _default_cell_number = 65536
-
-(* Debugging *)
+(* Auxiliary debug functions *)
 let _debug f = (let () = print_string "[DEBUG] " in Printf.printf) f
 let _code f  = (let () = print_string "\t" in Printf.printf) f
+let print_code  = Array.iteri (fun i s -> Printf.printf "\t%05d\t%s\n" i (string_of_instruction s))
+let print_index = Hashtbl.iter (fun s i -> Printf.printf "\t%05d\t%20s\n" i s)
 
-(*
-let inst_get () =
-  let termio = Unix.tcgetattr Unix.stdin in
-  let () =
-      Unix.tcsetattr Unix.stdin Unix.TCSADRAIN
-          { termio with Unix.c_icanon = false } in
-  let res = input_char stdin in
-  Unix.tcsetattr Unix.stdin Unix.TCSADRAIN termio;
-  Char.code res
-*)
 
+(* Default constants and functions *)
+let _default_code_size   = 128
+let _default_index_size  = _default_code_size / 8
+let _default_cell_number = 65536
 let inst_get () = (read_line ()).[0] |> Char.code
+let inst_out i  = Char.chr i |> print_char
 
-let inst_out i = Char.chr i |> print_char
 
-
-(* Tape *)
+(* BUBAL Machine 
+ * --------------------------------------------------
+ * Composed by 2 classes:
+ *    1) Tape: manages the tape of cells and theirs values;
+ *    2) Machine: manages the program itself.
+ *)
 class tape = object (self)
-  val cells : int array = Array.make _default_cell_number 0
+  val cells       = Array.make _default_cell_number 0
   val mutable ptr = 0
   method forw n = let () = ptr <- ptr + n in cells.(ptr)
   method back n = let () = ptr <- ptr - n in cells.(ptr)
@@ -75,14 +75,13 @@ class tape = object (self)
   method out  f = let () = f (cells.(ptr)) in cells.(ptr)
   method set  n = let () = cells.(ptr) <- n in cells.(ptr)
   method cell n = let () = ptr <- n in cells.(ptr)
-  (* method _dump () = Array.iteri (fun i c -> Printf.printf "| %05d | %10d |\n" i c) cells *)
 end
 
 class machine prgm tape = object (self)
-  val program : tprogram = prgm
-  val t = tape
-  val mutable ptr = 0
-  val mutable lastvalue = 0
+  val program = prgm
+  val t       = tape
+  val mutable ptr           = 0
+  val mutable lastvalue     = 0
   val mutable _flag_waszero = false
   
   method _update () = _flag_waszero <- (lastvalue = 0)
@@ -115,7 +114,6 @@ class machine prgm tape = object (self)
 end
 
 
-
 (* Tokenizing and parsing *)
 let instruction_of_string s =
   if s = "" then raise Comment else   (* It shouldn't reach this point *)
@@ -138,11 +136,10 @@ let instruction_of_string s =
   | "JMP"  -> Jmp  arg
   | "STOP" -> Stop
   | ";"    -> raise Comment   (* It shouldn't reach this point *)
-  | _ -> raise (UnknownInstruction s)
+  | _      -> raise (UnknownInstruction s)
 
 
 let tokenize (table, lines) =
-  let () = _debug "%s\n" "tokenize()" in
   let index = Hashtbl.create _default_index_size in
   let code = Array.init lines (
     fun i ->
@@ -155,40 +152,39 @@ let tokenize (table, lines) =
 
 
 let get_program () =
-  let () = _debug "%s\n" "get_program()" in
   let code = Hashtbl.create _default_code_size in
   let rec try_read i =
     try
-      let s = read_line () in
-      (* let () = _code "%05d\t%s\n" i s in *)
-      if s <> "" && s.[0] <> ';' then
+      let s = read_line () |> String.trim in
+      if s <> "" && s.[0] <> ';' then     (* Ignores empty lines and comments *)
         let () = Hashtbl.add code i s
         in try_read (i + 1)
       else try_read i
     with End_of_file -> i
   in let lines = try_read 0 in
-  let () = _debug "%d lines were read.\n" lines in
     (code, lines)
 
 
-(* Auxiliary debug functions *)
-let print_code  = Array.iteri (fun i s -> Printf.printf "\t%05d\t%s\n" i (string_of_instruction s))
-let print_index = Hashtbl.iter (fun s i -> Printf.printf "\t%05d\t%20s\n" i s)
-
 (* Main block *)
 let () =
-  let () = print_endline "BUBAL 0.0.0-alpha, by Igor Nunes" in
   let program = get_program () |> tokenize in
-  let () = _debug "Label Index:\n" in
-  let () = print_index program.index in
-  let () = print_endline "\nLoading the BUBAL machine...\n" in
   let t = new tape in
   let mach = new machine program t in
-  let () = print_endline "=== RUN ===\n" in
-  let () = mach#run () in
-    print_endline "\n===========\nDone!"
+    mach#run ()
+
 
 (*
   With contributions from
   https://stackoverflow.com/questions/13410159/how-to-read-a-character-in-ocaml-without-a-return-key
+*)
+
+(*
+let inst_get () =
+  let termio = Unix.tcgetattr Unix.stdin in
+  let () =
+      Unix.tcsetattr Unix.stdin Unix.TCSADRAIN
+          { termio with Unix.c_icanon = false } in
+  let res = input_char stdin in
+  Unix.tcsetattr Unix.stdin Unix.TCSADRAIN termio;
+  Char.code res
 *)
